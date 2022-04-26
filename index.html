@@ -50,10 +50,10 @@
         if (type === "show-round-result") {
           document.getElementById(
             "round-msg"
-          ).innerText = `ROUND BATTLE ${params.bluePlayer.roundCard} vs ${params.redPlayer.roundCard}`;
+          ).innerText = `ROUND BATTLE => ${params.bluePlayer.roundCard} VS ${params.redPlayer.roundCard}`;
           document.getElementById(
             "result-msg"
-          ).innerText = `${params.result} PLAYER WON ROUND`;
+          ).innerText = `${params.result.toUpperCase()} PLAYER WON ROUND`;
           document.getElementById(
             "blue-msg"
           ).innerText = `Blue Player: ${params.bluePlayer.points} points`;

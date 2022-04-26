@@ -1,3 +1,9 @@
+import {
+  battleHashMap,
+  bluePrinceBattle,
+  cardMap,
+  redPrinceBattle,
+} from "./constants.js";
 import { logger } from "./utils/log.util.js";
 
 export default class GameHandler {
@@ -21,32 +27,34 @@ export default class GameHandler {
       points: 0,
       webSocket: ws,
       cards: [0, 1, 2, 3, 4, 5, 6, 7],
+      previousCard: {},
+      selectedCard: {},
     };
 
     if (!this.gameRooms[room].bluePlayer.id) {
       this.gameRooms[room].bluePlayer = { ...newPlayer, id: 1 };
       logger.info(`Blue Player ID: ${this.gameRooms[room].bluePlayer.id}`);
-      const idCommand = {
-        type: "your-id",
-        params: {
-          id: this.gameRooms[room].bluePlayer.id,
-        },
-      };
 
-      ws.send(JSON.stringify(idCommand));
+      this.sendIdCommand(ws, this.gameRooms[room].bluePlayer.id);
       return;
     }
 
     this.gameRooms[room].redPlayer = { ...newPlayer, id: 2 };
+
+    this.sendIdCommand(ws, this.gameRooms[room].redPlayer.id);
+
+    logger.info(`Red Player ID: ${this.gameRooms[room].redPlayer.id}`);
+  }
+
+  sendIdCommand(ws, id) {
     const idCommand = {
       type: "your-id",
       params: {
-        id: this.gameRooms[room].redPlayer.id,
+        id,
       },
     };
 
     ws.send(JSON.stringify(idCommand));
-    logger.info(`Red Player ID: ${this.gameRooms[room].redPlayer.id}`);
   }
 
   getPlayerById(id, roomKey) {
@@ -70,20 +78,20 @@ export default class GameHandler {
     if (player === "blue") {
       this.gameRooms[room].bluePlayer = {
         ...this.gameRooms[room].bluePlayer,
-        selectedCard: number,
+        selectedCard: cardMap[number],
       };
 
       ws.send(JSON.stringify(this.gameRooms[room].bluePlayer.selectedCard));
-      logger.info(`Blue player selected card: ${number}`);
+      logger.info(`Blue player selected card: ${cardMap[number].name}`);
       return;
     }
 
     this.gameRooms[room].redPlayer = {
       ...this.gameRooms[room].redPlayer,
-      selectedCard: number,
+      selectedCard: cardMap[number],
     };
 
-    logger.info(`Red player selected card: ${number}`);
+    logger.info(`Red player selected card: ${cardMap[number].name}`);
     ws.send(JSON.stringify(this.gameRooms[room].redPlayer.selectedCard));
 
     // rooms[roomKey].forEach((ws) => ws.send(number))
@@ -91,114 +99,84 @@ export default class GameHandler {
 
   removeCard(player) {
     player.cards = player.cards.filter(
-      (cards) => cards !== player.selectedCard
+      (cards) => cards !== player.selectedCard.force
     );
+  }
+
+  battleWithPrince(princeOpponentPlayer, princePlayer, princePlayerColor) {
+    const oponnentCard = princeOpponentPlayer.selectedCard.name.toLowerCase();
+    const hashPrinceBattle =
+      princePlayerColor === "red" ? redPrinceBattle : bluePrinceBattle;
+
+    this.setPreviousCard(princeOpponentPlayer, princePlayer);
+    this.cleanSelectedCard(princeOpponentPlayer, princeOpponentPlayer);
+
+    return hashPrinceBattle[oponnentCard] === undefined
+      ? hashPrinceBattle["default"]
+      : hashPrinceBattle[oponnentCard];
   }
 
   battleRound(bluePlayer, redPlayer) {
     this.removeCard(bluePlayer);
     this.removeCard(redPlayer);
 
-    let bluePlayerCard = bluePlayer.selectedCard;
-    let redPlayerCard = redPlayer.selectedCard;
-
     // logica imitador
-    if (bluePlayerCard === 5) {
+    if (bluePlayer.selectedCard.name === "Imitador") {
       bluePlayer.selectedCard = redPlayer.previousCard;
     }
 
     // logica imitador
-    if (redPlayerCard === 5) {
+    if (redPlayer.selectedCard.name === "Imitador") {
       redPlayer.selectedCard = bluePlayer.previousCard;
     }
 
     // logica principe
-    if (bluePlayerCard === 7) {
-      if (redPlayer.selectedCard === 0) return "draw";
-      if (redPlayer.selectedCard === 1) return "red won";
-      return "blue";
+    if (bluePlayer.selectedCard.name === "Principe") {
+      this.battleWithPrince(redPlayer, bluePlayer, "blue")
     }
 
     // logica principe
-    if (redPlayerCard === 7) {
-      if (bluePlayer.selectedCard === 0) return "draw";
-      if (bluePlayer.selectedCard === 1) return "blue won";
-      return "red";
+    if (redPlayer.selectedCard.name === "Principe") {
+      this.battleWithPrince(bluePlayer, redPlayer, "red")
     }
 
     // logica general
-    if (bluePlayer.previousCard === 6) {
-      bluePlayerCard += 2;
+    if (bluePlayer.previousCard.name === "General") {
+      bluePlayer.selectedCard.force += 2;
     }
 
     // logica general
-    if (redPlayer.previousCard === 6) {
-      redPlayerCard += 2;
+    if (redPlayer.previousCard.name === "General") {
+      redPlayer.selectedCard.force += 2;
     }
 
     // logica empate
     if (
-      bluePlayer.selectedCard === 0 ||
-      redPlayer.selectedCard === 0 ||
-      bluePlayerCard === redPlayerCard
+      bluePlayer.selectedCard.name === "Musico" ||
+      redPlayer.selectedCard.name === "Musico" ||
+      bluePlayer.selectedCard.force === redPlayer.selectedCard.force
     ) {
       this.setPreviousCard(bluePlayer, redPlayer);
       this.cleanSelectedCard(bluePlayer, redPlayer);
-      logger.info(`draw`);
       return "draw";
     }
 
-    const battleKey = `${bluePlayerCard}-${redPlayerCard}`;
-    // implementar logica general - player.previousCard
-    // implementar logica imitador - OK?
-    // implementar logica contar empates
+    // logica do assassino
+    if (
+      bluePlayer.selectedCard.name === "Assassino" ||
+      redPlayer.selectedCard.name === "Assassino"
+    ) {
+      const winner =
+        bluePlayer.selectedCard.force < redPlayer.selectedCard.force
+          ? "blue"
+          : "red";
 
-    const battleHashMap = {
-      // princesa
-      "1-2": "red",
-      "1-3": "blue",
-      "1-4": "red",
-      "1-5": "red",
-      "1-6": "red",
+      this.setPreviousCard(bluePlayer, redPlayer);
+      this.cleanSelectedCard(bluePlayer, redPlayer);
+      return winner;
+    }
 
-      "2-1": "blue",
-      "3-1": "red",
-      "4-1": "blue",
-      "5-1": "blue",
-      "6-1": "blue",
-
-      // espiao
-      "2-3": "blue",
-      "2-4": "red",
-      "2-5": "red",
-      "2-6": "red",
-
-      "3-2": "red",
-      "4-2": "blue",
-      "5-2": "blue",
-      "6-2": "blue",
-
-      // assassino
-      "3-4": "blue",
-      "3-5": "blue",
-      "3-6": "blue",
-
-      "4-3": "red",
-      "5-3": "red",
-      "6-3": "red",
-
-      // embaixador
-      "4-5": "red",
-      "4-6": "red",
-
-      "5-4": "blue",
-      "6-4": "blue",
-
-      //imitador
-      "5-6": "red",
-
-      "6-5": "blue",
-    };
+    const battleKey = `${bluePlayer.selectedCard.force}-${redPlayer.selectedCard.force}`;
 
     this.setPreviousCard(bluePlayer, redPlayer);
     this.cleanSelectedCard(bluePlayer, redPlayer);
@@ -206,14 +184,14 @@ export default class GameHandler {
     return battleHashMap[battleKey];
   }
 
-  setPreviousCard(bluePlayer, redPlayer) {
-    bluePlayer.previousCard = bluePlayer.selectedCard;
-    redPlayer.previousCard = redPlayer.selectedCard;
+  setPreviousCard(playerOne, playerTwo) {
+    playerOne.previousCard = playerOne.selectedCard;
+    playerTwo.previousCard = playerTwo.selectedCard;
   }
 
-  cleanSelectedCard(bluePlayer, redPlayer) {
-    bluePlayer.selectedCard = undefined;
-    redPlayer.selectedCard = undefined;
+  cleanSelectedCard(playerOne, playerTwo) {
+    playerOne.selectedCard = {};
+    playerTwo.selectedCard = {};
   }
 
   showOpponentCard(roomPlayers, player) {
@@ -234,21 +212,17 @@ export default class GameHandler {
     const room = this.gameRooms[roomKey];
     const { bluePlayer, redPlayer } = room;
 
-    logger.info(
-      `blueCard: ${bluePlayer.selectedCard}, redCard: ${redPlayer.selectedCard}`
-    );
-
     if (
-      bluePlayer.selectedCard === undefined ||
-      redPlayer.selectedCard === undefined
+      Object.keys(bluePlayer.selectedCard).length === 0 ||
+      Object.keys(redPlayer.selectedCard).length === 0
     ) {
       // logica espiao
-      if (playerId === 1 && redPlayer.previousCard === 2) {
+      if (playerId === 1 && redPlayer.previousCard.name === "Espião") {
         this.showOpponentCard(roomPlayers, bluePlayer);
       }
 
       // logica espiao
-      if (playerId === 2 && bluePlayer.previousCard === 2) {
+      if (playerId === 2 && bluePlayer.previousCard.name === "Espião") {
         this.showOpponentCard(roomPlayers, redPlayer);
       }
 
@@ -257,26 +231,15 @@ export default class GameHandler {
 
     const battleResult = this.battleRound(bluePlayer, redPlayer);
 
-    logger.info(
-      `The round is ${bluePlayer.selectedCard} vs ${redPlayer.selectedCard}`
-    );
+    
 
-    if (battleResult === "draw") {
-      room.activeDraws += 1;
-      logger.info(`Increasing active draws. Active draws: ${room.activeDraws}`);
-    }
+    const winnerHashTable = {
+      blue: bluePlayer,
+      red: redPlayer,
+      draw: "draw",
+    };
 
-    if (battleResult === "blue") {
-      this.increasePlayerPoints(bluePlayer, room.activeDraws);
-      room.activeDraws = 0;
-      logger.info(`Increasing red player points with ${1 + room.activeDraws}`);
-    }
-
-    if (battleResult === "red") {
-      this.increasePlayerPoints(redPlayer, room.activeDraws);
-      room.activeDraws = 0;
-      logger.info(`Increasing blue player points with ${1 + room.activeDraws}`);
-    }
+    this.handleBattleResult(winnerHashTable[battleResult], battleResult, room);
 
     const showRoundResult = {
       type: "show-round-result",
@@ -285,12 +248,12 @@ export default class GameHandler {
         bluePlayer: {
           points: bluePlayer.points,
           cards: bluePlayer.cards,
-          roundCard: bluePlayer.previousCard
+          roundCard: bluePlayer.previousCard.name,
         },
         redPlayer: {
           points: redPlayer.points,
           cards: redPlayer.cards,
-          roundCard: redPlayer.previousCard
+          roundCard: redPlayer.previousCard.name,
         },
         activeDraws: room.activeDraws,
       },
@@ -299,8 +262,22 @@ export default class GameHandler {
     roomPlayers.forEach((ws) => ws.send(JSON.stringify(showRoundResult)));
   }
 
+  handleBattleResult(winner, battleResult, room) {
+    if (battleResult === "draw") {
+      room.activeDraws += 1;
+      logger.info(`Increasing active draws. Active draws: ${room.activeDraws}`);
+      return;
+    }
+
+    this.increasePlayerPoints(winner, room.activeDraws);
+    room.activeDraws = 0;
+    logger.info(
+      `Increasing ${battleResult} player points with ${1 + room.activeDraws}`
+    );
+  }
+
   increasePlayerPoints(player, activeDraws) {
-    const points = player.previousCard === 4 ? 2 : 1;
+    const points = player.previousCard.name === "Embaixador" ? 2 : 1;
     player.points += points + activeDraws;
   }
 }
