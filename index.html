@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Client</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <button onclick="create()">Create</button>
+    <input type="text" name="room-code" id="room-code" />
+    <button onclick="join()">Join</button>
+    <button onclick="leave()">Leave</button>
+    <div class="cards">
+      <button class="card" value="0" onclick="playCard(0)">Musico</button>
+      <button class="card" value="1" onclick="playCard(1)">Princesa</button>
+      <button class="card" value="2" onclick="playCard(2)">Espiao</button>
+      <button class="card" value="3" onclick="playCard(3)">Assassino</button>
+      <button class="card" value="4" onclick="playCard(4)">Embaixador</button>
+      <button class="card" value="5" onclick="playCard(5)">Imitador</button>
+      <button class="card" value="6" onclick="playCard(6)">General</button>
+      <button class="card" value="7" onclick="playCard(7)">Principe</button>
+    </div>
+    <p><b id="room-msg"></b></p>
+    <p><b id="opponent-msg"></b></p>
+    <p><b id="round-msg"></b></p>
+    <p><b id="result-msg"></b></p>
+    <p><b id="blue-msg"></b></p>
+    <p><b id="red-msg"></b></p>
+    <p><b id="draws-msg"></b></p>
+    <button class="confirm-play" onclick="confirmCard()">Confirmar</button>
+    <script>
+      let myId;
+      const ws = new WebSocket("ws://localhost:3000");
+      const cards = document.querySelectorAll(".card");
+      disableCardButtons(true, cards);
+      ws.onopen = function (event) {};
+      ws.onmessage = function (event) {
+        const { type, params, id } = JSON.parse(event.data);
+
+        if (type === "ready-to-play") {
+          disableCardButtons(false, cards);
+        }
+
+        if (type === "show-opponent-card") {
+          document.getElementById("opponent-msg").innerText = `${params.card}`;
+        }
+
+        if (type === "show-round-result") {
+          document.getElementById(
+            "round-msg"
+          ).innerText = `ROUND BATTLE ${params.bluePlayer.roundCard} vs ${params.redPlayer.roundCard}`;
+          document.getElementById(
+            "result-msg"
+          ).innerText = `${params.result} PLAYER WON ROUND`;
+          document.getElementById(
+            "blue-msg"
+          ).innerText = `Blue Player: ${params.bluePlayer.points} points`;
+          document.getElementById(
+            "red-msg"
+          ).innerText = `Red Player: ${params.redPlayer.points} points`;
+          document.getElementById(
+            "draws-msg"
+          ).innerText = `Active Draws: ${params.activeDraws}`;
+
+          console.log("blue", params.bluePlayer);
+          console.log("red", params.redPlayer);
+
+          if (myId === 1) disablePlayedCardsButtons(params.bluePlayer.cards);
+
+          if (myId === 2) disablePlayedCardsButtons(params.redPlayer.cards);
+        }
+
+        if (type === "your-id") {
+          myId = params.id;
+        }
+
+        if (type === "info") {
+          document.getElementById("room-msg").innerText = event.data;
+        }
+
+        console.log("last-msg", event.data);
+      };
+
+      function disablePlayedCardsButtons(playerCards) {
+        cards.forEach((card, index) => {
+          playerCards.includes(Number(card.value))
+            ? (card.disabled = false)
+            : (card.disabled = true);
+        });
+      }
+
+      function create() {
+        ws.send('{ "type": "create" }');
+      }
+
+      function join() {
+        const code = document.getElementById("room-code").value;
+        const obj = { type: "join", params: { code: code } };
+        ws.send(JSON.stringify(obj));
+      }
+
+      function leave() {
+        ws.send('{ "type": "leave" }');
+      }
+
+      function playCard(number) {
+        const playCardcommand = {
+          type: "card",
+          params: {
+            number,
+            playerId: myId,
+          },
+        };
+        ws.send(JSON.stringify(playCardcommand));
+      }
+
+      function confirmCard() {
+        disableCardButtons(true, cards);
+        const confirmCardCommand = {
+          type: "confirm-card",
+          params: {
+            playerId: myId,
+          },
+        };
+        ws.send(JSON.stringify(confirmCardCommand));
+      }
+
+      function disableCardButtons(disabled) {
+        cards.forEach((card) => (card.disabled = disabled));
+      }
+    </script>
+  </body>
+</html>

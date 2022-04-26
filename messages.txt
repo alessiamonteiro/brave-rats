@@ -1,0 +1,9 @@
+{ "type": "create", "params": {}}
+
+{ "type": "join", 
+	"params": {
+		"code": "code"
+	}
+},
+
+{ "type": "leave", "params": {}}

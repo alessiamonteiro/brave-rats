@@ -1,0 +1,23 @@
+{
+  "name": "brave-rats",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "npx nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pino": "^7.10.0",
+    "pino-pretty": "^7.6.1",
+    "ws": "^8.5.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.3",
+    "nodemon": "^2.0.15"
+  }
+}
